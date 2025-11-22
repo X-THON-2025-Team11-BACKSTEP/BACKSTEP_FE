@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { api } from "../../lib/api";
 
 type NavbarProps = {
   isScrolled?: boolean;
@@ -26,6 +27,8 @@ export function Navbar({
   >("post");
   const [searchQuery, setSearchQuery] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [profileInitial, setProfileInitial] = useState("U");
 
   // Use props if available, otherwise internal state
   const searchType = propSearchType || internalSearchType;
@@ -49,6 +52,34 @@ export function Navbar({
       console.error("Search failed", error);
     }
   };
+
+  useEffect(() => {
+    const fetchProfileImage = async () => {
+      try {
+        const meResponse = await api.get<{
+          data: { user: { user_id: number; name: string } };
+        }>("/users/me");
+
+        const userId = meResponse.data.user.user_id;
+        setProfileInitial(meResponse.data.user.name?.charAt(0) ?? "U");
+
+        const detailResponse = await api.get<{
+          data: { user: { profile_image: string | null; name: string } };
+        }>(`/users/${userId}`);
+
+        setProfileImage(detailResponse.data.user.profile_image);
+        setProfileInitial(
+          detailResponse.data.user.name?.charAt(0) ?? profileInitial
+        );
+      } catch (error) {
+        console.error("Failed to load profile image", error);
+      }
+    };
+
+    fetchProfileImage();
+    // intentionally omit profileInitial from deps to avoid refetch loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <nav className="fixed left-0 right-0 top-0 z-50 flex h-16 items-center justify-between border-b border-zinc-100 bg-white/80 px-6 backdrop-blur-md transition-all">
@@ -135,10 +166,17 @@ export function Navbar({
           href="/profile"
           className="h-8 w-8 overflow-hidden rounded-full bg-zinc-200 transition-all hover:ring-2 hover:ring-orange-500"
         >
-          {/* Profile Image Placeholder */}
-          <div className="flex h-full w-full items-center justify-center text-xs text-zinc-500">
-            U
-          </div>
+          {profileImage ? (
+            <img
+              src={profileImage}
+              alt="사용자 프로필"
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-xs font-bold text-zinc-500">
+              {profileInitial}
+            </div>
+          )}
         </Link>
       </div>
     </nav>
